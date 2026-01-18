@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { STIMULI_POOL, BASHKIR_WORDS, RUSSIAN_WORDS, COW_IMAGES, HORSE_IMAGES } from '../constants';
+import { STIMULI_POOL, BASHKIR_WORDS, RUSSIAN_WORDS, SWAMP_IMAGES, MOUNTAIN_IMAGES } from '../constants';
 import { Category, StimulusType, UserSession, BlockConfig } from '../types';
 import { saveResults } from '../services/supabaseService';
 
@@ -8,39 +8,37 @@ const getRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
 
 // Generate blocks based on counterbalancing group
 const getBlocks = (group: 'A' | 'B'): BlockConfig[] => {
-  // Group A: Standard (Bashkir+Horse vs Russian+Cow)
-  // Group B: Inverted (Bashkir+Cow vs Russian+Horse)
+  // Group A: Standard (Bashkir+Mountain vs Russian+Swamp)
+  // Group B: Inverted (Bashkir+Swamp vs Russian+Mountain)
   
   const isGroupA = group === 'A';
 
   const combinedBlock1_Left = isGroupA 
-    ? [Category.BASHKIR, Category.HORSE] 
-    : [Category.BASHKIR, Category.COW];
+    ? [Category.BASHKIR, Category.MOUNTAIN] 
+    : [Category.BASHKIR, Category.SWAMP];
   
   const combinedBlock1_Right = isGroupA 
-    ? [Category.RUSSIAN, Category.COW] 
-    : [Category.RUSSIAN, Category.HORSE];
+    ? [Category.RUSSIAN, Category.SWAMP] 
+    : [Category.RUSSIAN, Category.MOUNTAIN];
 
   const combinedBlock1_Instruct = isGroupA
-    ? "Нажимайте 'E' для БАШКИРЫ или ЛОШАДИ.\nНажимайте 'I' для РУССКИЕ или КОРОВЫ."
-    : "Нажимайте 'E' для БАШКИРЫ или КОРОВЫ.\nНажимайте 'I' для РУССКИЕ или ЛОШАДИ.";
+    ? "Нажимайте 'E' для БАШКИРЫ или ГОРЫ.\nНажимайте 'I' для РУССКИЕ или БОЛОТА."
+    : "Нажимайте 'E' для БАШКИРЫ или БОЛОТА.\nНажимайте 'I' для РУССКИЕ или ГОРЫ.";
 
   // After swapping words in Block 5 (Russian is now Left, Bashkir is Right)
   // We need to swap the images to match the *opposite* pairing logic of the first combined block
-  // Group A: Needs Russian+Horse (Left) vs Bashkir+Cow (Right)
-  // Group B: Needs Russian+Cow (Left) vs Bashkir+Horse (Right)
   
   const combinedBlock2_Left = isGroupA
-    ? [Category.RUSSIAN, Category.HORSE]
-    : [Category.RUSSIAN, Category.COW];
+    ? [Category.RUSSIAN, Category.MOUNTAIN]
+    : [Category.RUSSIAN, Category.SWAMP];
 
   const combinedBlock2_Right = isGroupA
-    ? [Category.BASHKIR, Category.COW]
-    : [Category.BASHKIR, Category.HORSE];
+    ? [Category.BASHKIR, Category.SWAMP]
+    : [Category.BASHKIR, Category.MOUNTAIN];
 
   const combinedBlock2_Instruct = isGroupA
-    ? "Нажимайте 'E' для РУССКИЕ или ЛОШАДИ.\nНажимайте 'I' для БАШКИРЫ или КОРОВЫ."
-    : "Нажимайте 'E' для РУССКИЕ или КОРОВЫ.\nНажимайте 'I' для БАШКИРЫ или ЛОШАДИ.";
+    ? "Нажимайте 'E' для РУССКИЕ или ГОРЫ.\nНажимайте 'I' для БАШКИРЫ или БОЛОТА."
+    : "Нажимайте 'E' для РУССКИЕ или БОЛОТА.\nНажимайте 'I' для БАШКИРЫ или ГОРЫ.";
 
   return [
     {
@@ -54,9 +52,9 @@ const getBlocks = (group: 'A' | 'B'): BlockConfig[] => {
     {
       id: 2,
       title: "Блок 2 из 7: Тренировка изображений",
-      instruction: "Запомните изображения для каждой категории.\nНажимайте 'E' (слева) для ЛОШАДЕЙ.\nНажимайте 'I' (справа) для КОРОВ.",
-      leftCategories: [Category.HORSE],
-      rightCategories: [Category.COW],
+      instruction: "Запомните изображения для каждой категории.\nНажимайте 'E' (слева) для ГОР.\nНажимайте 'I' (справа) для БОЛОТ.",
+      leftCategories: [Category.MOUNTAIN],
+      rightCategories: [Category.SWAMP],
       trials: 20
     },
     {
@@ -396,25 +394,25 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
               </ul>
             </div>
 
-            {/* Horses */}
+            {/* Mountain */}
             <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
-              <h3 className="font-bold text-emerald-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Лошади</h3>
+              <h3 className="font-bold text-emerald-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Горы</h3>
               <div className="grid grid-cols-2 gap-2">
-                {HORSE_IMAGES.slice(0, 4).map((src, i) => (
+                {MOUNTAIN_IMAGES.slice(0, 4).map((src, i) => (
                   <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
-                    <img src={src} className="w-full h-full object-cover" alt="Horse" onError={handleImageError} />
+                    <img src={src} className="w-full h-full object-cover" alt="Mountain" onError={handleImageError} />
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Cows */}
+            {/* Swamp */}
             <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
-              <h3 className="font-bold text-blue-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Коровы</h3>
+              <h3 className="font-bold text-blue-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Болота</h3>
               <div className="grid grid-cols-2 gap-2">
-                 {COW_IMAGES.slice(0, 4).map((src, i) => (
+                 {SWAMP_IMAGES.slice(0, 4).map((src, i) => (
                   <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
-                    <img src={src} className="w-full h-full object-cover" alt="Cow" onError={handleImageError} />
+                    <img src={src} className="w-full h-full object-cover" alt="Swamp" onError={handleImageError} />
                   </div>
                 ))}
               </div>
@@ -486,18 +484,18 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
             </div>
           )}
 
-          {/* Block 2: Images - Horse (Left), Cow (Right) */}
+          {/* Block 2: Images - Mountain (Left), Swamp (Right) */}
           {currentBlock.id === 2 && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t border-slate-600 pt-4">
                 <div className="bg-slate-900/50 p-4 rounded-lg">
-                  <h3 className="font-bold text-emerald-400 mb-2 text-center">Лошади (E)</h3>
+                  <h3 className="font-bold text-emerald-400 mb-2 text-center">Горы (E)</h3>
                   <div className="flex justify-center gap-2 flex-wrap">
-                     {HORSE_IMAGES.map((src, i) => (
+                     {MOUNTAIN_IMAGES.map((src, i) => (
                        <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
                          <img 
                            src={src} 
                            className="w-full h-full object-cover" 
-                           alt={`Horse ${i+1}`}
+                           alt={`Mountain ${i+1}`}
                            onError={handleImageError}
                          />
                        </div>
@@ -505,14 +503,14 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
                   </div>
                 </div>
                 <div className="bg-slate-900/50 p-4 rounded-lg">
-                  <h3 className="font-bold text-blue-400 mb-2 text-center">Коровы (I)</h3>
+                  <h3 className="font-bold text-blue-400 mb-2 text-center">Болота (I)</h3>
                   <div className="flex justify-center gap-2 flex-wrap">
-                     {COW_IMAGES.map((src, i) => (
+                     {SWAMP_IMAGES.map((src, i) => (
                        <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
                          <img 
                            src={src} 
                            className="w-full h-full object-cover" 
-                           alt={`Cow ${i+1}`}
+                           alt={`Swamp ${i+1}`}
                            onError={handleImageError}
                          />
                        </div>
@@ -537,7 +535,7 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
       <div className="flex justify-between items-start p-4 md:p-6 h-28 md:h-32">
         <div className="flex-1 text-left text-lg md:text-2xl font-bold uppercase tracking-wider text-blue-400 leading-tight">
           {currentBlock.leftCategories.map(c => (
-             <div key={c}>{c === Category.BASHKIR ? 'Башкиры' : c === Category.RUSSIAN ? 'Русские' : c === Category.HORSE ? 'Лошади' : 'Коровы'}</div>
+             <div key={c}>{c === Category.BASHKIR ? 'Башкиры' : c === Category.RUSSIAN ? 'Русские' : c === Category.MOUNTAIN ? 'Горы' : 'Болота'}</div>
           ))}
         </div>
 
@@ -556,7 +554,7 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
         <div className="flex-1 text-right text-lg md:text-2xl font-bold uppercase tracking-wider text-blue-400 leading-tight">
           {currentBlock.rightCategories.map(c => (
-             <div key={c}>{c === Category.BASHKIR ? 'Башкиры' : c === Category.RUSSIAN ? 'Русские' : c === Category.HORSE ? 'Лошади' : 'Коровы'}</div>
+             <div key={c}>{c === Category.BASHKIR ? 'Башкиры' : c === Category.RUSSIAN ? 'Русские' : c === Category.MOUNTAIN ? 'Горы' : 'Болота'}</div>
           ))}
         </div>
       </div>
