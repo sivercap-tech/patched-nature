@@ -1,64 +1,111 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { STIMULI_POOL, BASHKIR_WORDS, RUSSIAN_WORDS, COW_IMAGES, HORSE_IMAGES } from '../constants';
-import { Category, StimulusType } from '../types';
+import { Category, StimulusType, UserSession, BlockConfig } from '../types';
 import { saveResults } from '../services/supabaseService';
 
 // Helper to get random item
 const getRandom = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
 
-// Configuration of the 6 Blocks
-const BLOCKS = [
-  {
-    id: 1,
-    title: "Этап 1: Слова",
-    instruction: "Запомните слова для каждой категории.\nНажимайте 'E' (слева) для БАШКИРСКИХ слов.\nНажимайте 'I' (справа) для РУССКИХ слов.",
-    leftCategories: [Category.BASHKIR],
-    rightCategories: [Category.RUSSIAN],
-    trials: 10
-  },
-  {
-    id: 2,
-    title: "Этап 2: Картинки",
-    instruction: "Нажимайте 'E' (слева) для КОРОВ.\nНажимайте 'I' (справа) для ЛОШАДЕЙ.",
-    leftCategories: [Category.COW],
-    rightCategories: [Category.HORSE],
-    trials: 10
-  },
-  {
-    id: 3,
-    title: "Этап 3: Совмещение (Тренировка)",
-    instruction: "Нажимайте 'E' для БАШКИРЫ или КОРОВЫ.\nНажимайте 'I' для РУССКИЕ или ЛОШАДИ.",
-    leftCategories: [Category.BASHKIR, Category.COW],
-    rightCategories: [Category.RUSSIAN, Category.HORSE],
-    trials: 20
-  },
-  {
-    id: 4,
-    title: "Этап 4: Смена сторон (Слова)",
-    instruction: "ВНИМАНИЕ: Стороны поменялись!\nНажимайте 'E' (слева) для РУССКИХ слов.\nНажимайте 'I' (справа) для БАШКИРСКИХ слов.",
-    leftCategories: [Category.RUSSIAN],
-    rightCategories: [Category.BASHKIR],
-    trials: 10
-  },
-  {
-    id: 5,
-    title: "Этап 5: Обратное совмещение",
-    instruction: "Нажимайте 'E' для РУССКИЕ или КОРОВЫ.\nНажимайте 'I' для БАШКИРЫ или ЛОШАДИ.",
-    leftCategories: [Category.RUSSIAN, Category.COW],
-    rightCategories: [Category.BASHKIR, Category.HORSE],
-    trials: 20
-  },
-  {
-    id: 6,
-    title: "Этап 6: Финал",
-    instruction: "Повторим предыдущее задание.\nНажимайте 'E' для РУССКИЕ или КОРОВЫ.\nНажимайте 'I' для БАШКИРЫ или ЛОШАДИ.",
-    leftCategories: [Category.RUSSIAN, Category.COW],
-    rightCategories: [Category.BASHKIR, Category.HORSE],
-    trials: 20
-  }
-];
+// Generate blocks based on counterbalancing group
+const getBlocks = (group: 'A' | 'B'): BlockConfig[] => {
+  // Group A: Standard (Bashkir+Horse vs Russian+Cow)
+  // Group B: Inverted (Bashkir+Cow vs Russian+Horse)
+  
+  const isGroupA = group === 'A';
 
-const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void }) => {
+  const combinedBlock1_Left = isGroupA 
+    ? [Category.BASHKIR, Category.HORSE] 
+    : [Category.BASHKIR, Category.COW];
+  
+  const combinedBlock1_Right = isGroupA 
+    ? [Category.RUSSIAN, Category.COW] 
+    : [Category.RUSSIAN, Category.HORSE];
+
+  const combinedBlock1_Instruct = isGroupA
+    ? "Нажимайте 'E' для БАШКИРЫ или ЛОШАДИ.\nНажимайте 'I' для РУССКИЕ или КОРОВЫ."
+    : "Нажимайте 'E' для БАШКИРЫ или КОРОВЫ.\nНажимайте 'I' для РУССКИЕ или ЛОШАДИ.";
+
+  // After swapping words in Block 5 (Russian is now Left, Bashkir is Right)
+  // We need to swap the images to match the *opposite* pairing logic of the first combined block
+  // Group A: Needs Russian+Horse (Left) vs Bashkir+Cow (Right)
+  // Group B: Needs Russian+Cow (Left) vs Bashkir+Horse (Right)
+  
+  const combinedBlock2_Left = isGroupA
+    ? [Category.RUSSIAN, Category.HORSE]
+    : [Category.RUSSIAN, Category.COW];
+
+  const combinedBlock2_Right = isGroupA
+    ? [Category.BASHKIR, Category.COW]
+    : [Category.BASHKIR, Category.HORSE];
+
+  const combinedBlock2_Instruct = isGroupA
+    ? "Нажимайте 'E' для РУССКИЕ или ЛОШАДИ.\nНажимайте 'I' для БАШКИРЫ или КОРОВЫ."
+    : "Нажимайте 'E' для РУССКИЕ или КОРОВЫ.\nНажимайте 'I' для БАШКИРЫ или ЛОШАДИ.";
+
+  return [
+    {
+      id: 1,
+      title: "Блок 1 из 7: Тренировка слов",
+      instruction: "Запомните слова для каждой категории.\nНажимайте 'E' (слева) для БАШКИРСКИХ слов.\nНажимайте 'I' (справа) для РУССКИХ слов.",
+      leftCategories: [Category.BASHKIR],
+      rightCategories: [Category.RUSSIAN],
+      trials: 20
+    },
+    {
+      id: 2,
+      title: "Блок 2 из 7: Тренировка изображений",
+      instruction: "Запомните изображения для каждой категории.\nНажимайте 'E' (слева) для ЛОШАДЕЙ.\nНажимайте 'I' (справа) для КОРОВ.",
+      leftCategories: [Category.HORSE],
+      rightCategories: [Category.COW],
+      trials: 20
+    },
+    {
+      id: 3,
+      title: "Блок 3 из 7: Совмещение (Тренировка)",
+      instruction: combinedBlock1_Instruct,
+      leftCategories: combinedBlock1_Left,
+      rightCategories: combinedBlock1_Right,
+      trials: 20
+    },
+    {
+      id: 4,
+      title: "Блок 4 из 7: Совмещение (Тест)",
+      instruction: "То же самое задание, но быстрее.\n" + combinedBlock1_Instruct,
+      leftCategories: combinedBlock1_Left,
+      rightCategories: combinedBlock1_Right,
+      trials: 40
+    },
+    {
+      id: 5,
+      title: "Блок 5 из 7: Смена сторон (Слова)",
+      instruction: "ВНИМАНИЕ: Стороны для слов поменялись!\nНажимайте 'E' (слева) для РУССКИХ слов.\nНажимайте 'I' (справа) для БАШКИРСКИХ слов.",
+      leftCategories: [Category.RUSSIAN],
+      rightCategories: [Category.BASHKIR],
+      trials: 40
+    },
+    {
+      id: 6,
+      title: "Блок 6 из 7: Обратное совмещение (Тренировка)",
+      instruction: combinedBlock2_Instruct,
+      leftCategories: combinedBlock2_Left,
+      rightCategories: combinedBlock2_Right,
+      trials: 20
+    },
+    {
+      id: 7,
+      title: "Блок 7 из 7: Обратное совмещение (Тест)",
+      instruction: "То же самое задание, но быстрее.\n" + combinedBlock2_Instruct,
+      leftCategories: combinedBlock2_Left,
+      rightCategories: combinedBlock2_Right,
+      trials: 40
+    }
+  ];
+};
+
+const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: () => void }) => {
+  // New State: General Instructions before starting blocks
+  const [showGeneralIntro, setShowGeneralIntro] = useState(true);
+
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [isInstruction, setIsInstruction] = useState(true);
   const [trialCount, setTrialCount] = useState(0);
@@ -73,8 +120,13 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
+  // Initialize blocks based on session group
+  const blocks = useMemo(() => getBlocks(session.group), [session.group]);
+  const currentBlock = blocks[currentBlockIndex];
+
   // Buffer references to avoid closure staleness in event listeners
   const stateRef = useRef({
+    showGeneralIntro,
     currentBlockIndex,
     isInstruction,
     currentStimulus,
@@ -82,12 +134,14 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
     mistake,
     trialCount,
     finished,
-    isSaving
+    isSaving,
+    blocks
   });
 
   // Sync ref
   useEffect(() => {
     stateRef.current = { 
+      showGeneralIntro,
       currentBlockIndex, 
       isInstruction, 
       currentStimulus, 
@@ -95,17 +149,21 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
       mistake, 
       trialCount, 
       finished,
-      isSaving 
+      isSaving,
+      blocks
     };
-  }, [currentBlockIndex, isInstruction, currentStimulus, startTime, mistake, trialCount, finished, isSaving]);
-
-  const currentBlock = BLOCKS[currentBlockIndex];
+  }, [showGeneralIntro, currentBlockIndex, isInstruction, currentStimulus, startTime, mistake, trialCount, finished, isSaving, blocks]);
 
   const finishTest = useCallback(async (finalResults: any[]) => {
     setFinished(true);
     setIsSaving(true);
     
-    const response = await saveResults(session, finalResults);
+    // Include group info in the payload implicitly via the session object or explicitly in the results structure if needed.
+    // Here we save the raw results, and the session object (containing group) is passed to the service.
+    const response = await saveResults(session, {
+      group: session.group,
+      data: finalResults
+    });
     
     setIsSaving(false);
     if (response.error) {
@@ -114,10 +172,12 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
   }, [session]);
 
   const nextTrial = useCallback(() => {
-    const block = BLOCKS[currentBlockIndex];
+    const blocksLocal = stateRef.current.blocks;
+    const block = blocksLocal[currentBlockIndex];
+
     if (stateRef.current.trialCount >= block.trials) {
       // End of block
-      if (currentBlockIndex >= BLOCKS.length - 1) {
+      if (currentBlockIndex >= blocksLocal.length - 1) {
         // Pass the current accumulated results to finishTest
         finishTest(results); 
         return;
@@ -143,7 +203,16 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
     const state = stateRef.current;
     if (state.finished || state.isSaving) return;
 
-    // Handle Instruction Screen
+    // Handle General Intro Screen
+    if (state.showGeneralIntro) {
+      if (action === 'SPACE') {
+        setShowGeneralIntro(false);
+        // We are already at block 0, instruction true by default.
+      }
+      return;
+    }
+
+    // Handle Block Instruction Screen
     if (state.isInstruction) {
       if (action === 'SPACE') {
         setIsInstruction(false);
@@ -155,7 +224,7 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
     // Handle Test
     if (!state.currentStimulus) return;
 
-    const block = BLOCKS[state.currentBlockIndex];
+    const block = state.blocks[state.currentBlockIndex];
     
     let isLeft = false; 
     let isRight = false;
@@ -177,6 +246,7 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
       
       const result = {
         blockId: block.id,
+        blockName: block.title, // Helpful for analysis
         stimulusId: state.currentStimulus.id,
         category: state.currentStimulus.category,
         isCorrect: !state.mistake,
@@ -187,7 +257,7 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
       // Update results locally
       setResults(prev => [...prev, result]);
       
-      const isLastBlock = state.currentBlockIndex >= BLOCKS.length - 1;
+      const isLastBlock = state.currentBlockIndex >= state.blocks.length - 1;
       const isLastTrial = state.trialCount >= block.trials - 1;
       
       if (isLastBlock && isLastTrial) {
@@ -288,7 +358,76 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
     );
   }
 
-  // Instruction Screen
+  // General Intro Screen (before any blocks)
+  if (showGeneralIntro) {
+    return (
+      <div 
+        className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 md:p-8 text-center max-w-7xl mx-auto cursor-pointer"
+        onClick={() => handleInput('SPACE')}
+      >
+        <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl mb-8 w-full">
+          <p className="text-xl md:text-2xl leading-relaxed text-slate-200 mb-8 max-w-4xl mx-auto">
+            Постарайтесь действовать как можно быстрее, но при этом сохранять внимательность, чтобы допустить минимум ошибок. 
+            <br/><br/>
+            Вы будете использовать клавиши 
+            <span className="font-bold text-emerald-400 mx-2">'E'</span> и 
+            <span className="font-bold text-blue-400 mx-2">'I'</span> 
+            на клавиатуре, чтобы как можно быстрее относить слова и картинки к разным группам. 
+            <br/><br/>
+            Ниже показаны четыре группы и примеры элементов, которые к ним относятся:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+            {/* Bashkirs */}
+            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
+              <h3 className="font-bold text-emerald-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Башкиры</h3>
+              <ul className="text-slate-300 space-y-1 text-sm text-center">
+                {BASHKIR_WORDS.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+            </div>
+
+            {/* Russians */}
+            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
+              <h3 className="font-bold text-blue-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Русские</h3>
+              <ul className="text-slate-300 space-y-1 text-sm text-center">
+                {RUSSIAN_WORDS.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+            </div>
+
+            {/* Horses */}
+            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
+              <h3 className="font-bold text-emerald-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Лошади</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {HORSE_IMAGES.slice(0, 4).map((src, i) => (
+                  <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
+                    <img src={src} className="w-full h-full object-cover" alt="Horse" onError={handleImageError} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Cows */}
+            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
+              <h3 className="font-bold text-blue-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Коровы</h3>
+              <div className="grid grid-cols-2 gap-2">
+                 {COW_IMAGES.slice(0, 4).map((src, i) => (
+                  <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
+                    <img src={src} className="w-full h-full object-cover" alt="Cow" onError={handleImageError} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="animate-pulse text-emerald-400 font-bold text-xl md:text-2xl mt-4">
+          Нажмите ПРОБЕЛ, чтобы продолжить
+        </div>
+      </div>
+    );
+  }
+
+  // Instruction Screen (for Blocks)
   if (isInstruction) {
     return (
       <div 
@@ -301,11 +440,11 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
             {currentBlock.instruction}
           </pre>
           
-          {/* Learning Phase Visualization */}
+          {/* Block 1: Words - Bashkir (Left), Russian (Right) */}
           {currentBlock.id === 1 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-left border-t border-slate-600 pt-4">
               <div className="bg-slate-900/50 p-4 rounded-lg">
-                <h3 className="font-bold text-emerald-400 mb-2 text-center">Башкирские слова (E)</h3>
+                <h3 className="font-bold text-emerald-400 mb-2 text-center">Башкирские (E)</h3>
                 <div className="flex flex-wrap gap-2 justify-center">
                   {BASHKIR_WORDS.map(w => (
                     <span key={w} className="px-2 py-1 bg-emerald-900/40 border border-emerald-500/30 rounded text-sm text-emerald-100">{w}</span>
@@ -313,7 +452,7 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
                 </div>
               </div>
               <div className="bg-slate-900/50 p-4 rounded-lg">
-                <h3 className="font-bold text-blue-400 mb-2 text-center">Русские слова (I)</h3>
+                <h3 className="font-bold text-blue-400 mb-2 text-center">Русские (I)</h3>
                 <div className="flex flex-wrap gap-2 justify-center">
                   {RUSSIAN_WORDS.map(w => (
                     <span key={w} className="px-2 py-1 bg-blue-900/40 border border-blue-500/30 rounded text-sm text-blue-100">{w}</span>
@@ -323,25 +462,33 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
             </div>
           )}
 
+          {/* Block 5: Words - Russian (Left), Bashkir (Right) */}
+          {currentBlock.id === 5 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-left border-t border-slate-600 pt-4">
+              <div className="bg-slate-900/50 p-4 rounded-lg">
+                <h3 className="font-bold text-emerald-400 mb-2 text-center">Русские (E)</h3>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {RUSSIAN_WORDS.map(w => (
+                    <span key={w} className="px-2 py-1 bg-emerald-900/40 border border-emerald-500/30 rounded text-sm text-emerald-100">{w}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-slate-900/50 p-4 rounded-lg">
+                <h3 className="font-bold text-blue-400 mb-2 text-center">Башкирские (I)</h3>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {BASHKIR_WORDS.map(w => (
+                    <span key={w} className="px-2 py-1 bg-blue-900/40 border border-blue-500/30 rounded text-sm text-blue-100">{w}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Block 2: Images - Horse (Left), Cow (Right) */}
           {currentBlock.id === 2 && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t border-slate-600 pt-4">
                 <div className="bg-slate-900/50 p-4 rounded-lg">
-                  <h3 className="font-bold text-emerald-400 mb-2">Коровы (E)</h3>
-                  <div className="flex justify-center gap-2 flex-wrap">
-                     {COW_IMAGES.map((src, i) => (
-                       <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
-                         <img 
-                           src={src} 
-                           className="w-full h-full object-cover" 
-                           alt={`Cow ${i+1}`}
-                           onError={handleImageError}
-                         />
-                       </div>
-                     ))}
-                  </div>
-                </div>
-                <div className="bg-slate-900/50 p-4 rounded-lg">
-                  <h3 className="font-bold text-blue-400 mb-2">Лошади (I)</h3>
+                  <h3 className="font-bold text-emerald-400 mb-2 text-center">Лошади (E)</h3>
                   <div className="flex justify-center gap-2 flex-wrap">
                      {HORSE_IMAGES.map((src, i) => (
                        <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
@@ -349,6 +496,21 @@ const IATTest = ({ session, onComplete }: { session: any, onComplete: () => void
                            src={src} 
                            className="w-full h-full object-cover" 
                            alt={`Horse ${i+1}`}
+                           onError={handleImageError}
+                         />
+                       </div>
+                     ))}
+                  </div>
+                </div>
+                <div className="bg-slate-900/50 p-4 rounded-lg">
+                  <h3 className="font-bold text-blue-400 mb-2 text-center">Коровы (I)</h3>
+                  <div className="flex justify-center gap-2 flex-wrap">
+                     {COW_IMAGES.map((src, i) => (
+                       <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
+                         <img 
+                           src={src} 
+                           className="w-full h-full object-cover" 
+                           alt={`Cow ${i+1}`}
                            onError={handleImageError}
                          />
                        </div>
