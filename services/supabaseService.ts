@@ -20,16 +20,19 @@ export const saveResults = async (session: any, results: any) => {
     };
   }
 
-  try {
-    // Assuming a table named 'iat_results' exists
+ try {
+    // ИСПОЛЬЗУЕМ UPDATE ВМЕСТО INSERT, как указано в задании
     const { data, error } = await supabase
       .from('iat_results')
-      .insert({ 
-        results_part2: results, 
-        // Можно добавить флаг, что тест пройден полностью
-        status: 'completed' 
+      .update({ 
+        results_nature: results, 
+        
+        finished_at: new Date().toISOString(),
+        
+        status: 'completed'
       })
-      .eq('user_id', session.userId); // Ищем по ID из первого теста
+      .eq('user_id', session.userId)
+      .select();
 
     if (error) throw error;
     return { data };
@@ -38,3 +41,6 @@ export const saveResults = async (session: any, results: any) => {
     return { error };
   }
 };
+
+export const recordTransition = async (session: any) => {
+  if (!supabase) return;
