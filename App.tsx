@@ -47,11 +47,14 @@ const AppContent = () => {
   const [testActive, setTestActive] = useState(false);
 
   useEffect(() => {
-    // Initialize Session with Counterbalancing
-    const userId = generateUUID();
-    const referrer = document.referrer || "direct";
+    // 1. Проверяем, есть ли ID в ссылке (пришел ли человек с первого сайта)
+    const urlParams = new URLSearchParams(window.location.search);
+    // Ищем параметр 'originalUserId' (так мы назвали его в первом репо) или 'pid'
+    const existingId = urlParams.get('originalUserId') || urlParams.get('pid');
+    // Если ID есть, используем его. Если нет — генерируем новый (как раньше)
+    const userId = existingId || generateUUID();
+    const referrer = document.referrer || "direct";    
     
-    // Random assignment to Group A or B
     const group = Math.random() < 0.5 ? 'A' : 'B';
 
     const newSession: UserSession = {
