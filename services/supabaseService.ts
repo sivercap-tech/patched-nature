@@ -24,7 +24,7 @@ export const saveResults = async (session: any, results: any) => {
     // Assuming a table named 'iat_results' exists
     const { data, error } = await supabase
       .from('iat_results')
-      .insert({ 
+      .update({ 
         results_part2: results, 
         // Можно добавить флаг, что тест пройден полностью
         status: 'completed' 
