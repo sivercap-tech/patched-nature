@@ -16,12 +16,8 @@ export const RUSSIAN_WORDS = [
   "Илья Муромец", "Волга", "Масленица", "Кокошник"
 ];
 
-// Local Images
-// Using import.meta.glob ensures that Vite processes these files as assets,
-// includes them in the build output, and provides the correct hashed URLs.
-// This works even if the 'images' folder is not in 'public'.
-const horseModules = import.meta.glob('./images/horse_*.jpg', { eager: true, import: 'default' });
-const cowModules = import.meta.glob('./images/cow_*.jpg', { eager: true, import: 'default' });
+const mountainModules = import.meta.glob('./images/mountain_*.jpg', { eager: true, import: 'default' });
+const swampModules = import.meta.glob('./images/swamp_*.jpg', { eager: true, import: 'default' });
 
 // Helper to sort images numerically (e.g. horse_1, horse_2, ..., horse_10)
 const getSortedImages = (modules: Record<string, unknown>) => {
@@ -35,21 +31,21 @@ const getSortedImages = (modules: Record<string, unknown>) => {
     .map(([_, url]) => url as string);
 };
 
-export const HORSE_IMAGES = getSortedImages(horseModules);
-export const COW_IMAGES = getSortedImages(cowModules);
+export const MOUNTAIN_IMAGES = getSortedImages(mountainModules);
+export const SWAMP_IMAGES = getSortedImages(swampModules);
 
 // Fallback / Debugging
-if (HORSE_IMAGES.length === 0) {
-  console.warn("No horse images found! Check that files exist in ./images/horse_*.jpg");
+if (MOUNTAIN_IMAGES.length === 0) {
+  console.warn("No mountain images found! Check that files exist in ./images/mountain*.jpg");
 }
-if (COW_IMAGES.length === 0) {
-  console.warn("No cow images found! Check that files exist in ./images/cow_*.jpg");
+if (SWAMP_IMAGES.length === 0) {
+  console.warn("No swamp images found! Check that files exist in ./images/swamp*.jpg");
 }
 
 // Generate Stimuli Pool
 export const STIMULI_POOL: Stimulus[] = [
   ...BASHKIR_WORDS.map((w, i) => ({ id: `bash_${i}`, content: w, type: StimulusType.WORD, category: Category.BASHKIR })),
   ...RUSSIAN_WORDS.map((w, i) => ({ id: `rus_${i}`, content: w, type: StimulusType.WORD, category: Category.RUSSIAN })),
-  ...HORSE_IMAGES.map((url, i) => ({ id: `horse_${i}`, content: url, type: StimulusType.IMAGE, category: Category.HORSE })),
-  ...COW_IMAGES.map((url, i) => ({ id: `cow_${i}`, content: url, type: StimulusType.IMAGE, category: Category.COW })),
+  ...MOUNTAIN_IMAGES.map((url, i) => ({ id: `mountain_${i}`, content: url, type: StimulusType.IMAGE, category: Category.MOUNTAIN })),
+  ...SWAMP_IMAGES.map((url, i) => ({ id: `swamp_${i}`, content: url, type: StimulusType.IMAGE, category: Category.SWAMP })),
 ];
