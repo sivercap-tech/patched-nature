@@ -103,7 +103,7 @@ const getBlocks = (group: 'A' | 'B'): BlockConfig[] => {
 const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: () => void }) => {
   // New State: General Instructions before starting blocks
   const [showGeneralIntro, setShowGeneralIntro] = useState(true);
-  const [introStep, setIntroStep] = useState(0); // Added for step-by-step intro
+  const [introStep, setIntroStep] = useState(0);
 
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [isInstruction, setIsInstruction] = useState(true);
@@ -119,7 +119,7 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  // Debounce Ref (Protection against double taps)
+  // Debounce Ref
   const lastInputTime = useRef(0);
 
   // Initialize blocks based on session group
@@ -439,7 +439,7 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
               onClick={() => handleInput('SPACE')}
               className="fixed bottom-6 left-4 right-4 md:static md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-xl font-bold py-3 md:py-4 px-12 rounded-full shadow-lg transition-transform active:scale-95 animate-pulse z-50"
             >
-              Далее
+              Начать тест
             </button>
           </div>
         )}
@@ -614,22 +614,22 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
       </div>
 
       {/* Footer Controls */}
-      <div className="p-4 pb-8 mb-16 md:mb-0 flex gap-4 md:gap-8 w-full justify-center items-stretch h-36 md:h-48 z-10">
+      <div className="p-4 pb-8 mb-16 flex xl:hidden gap-4 w-full justify-center items-stretch h-36 z-10">
         <button 
           className="flex-1 max-w-md bg-slate-800/90 backdrop-blur-sm border-2 border-slate-600 hover:border-emerald-500/50 hover:bg-slate-700 active:bg-slate-600 active:scale-95 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg active:shadow-inner group touch-manipulation"
           onMouseDown={() => handleInput('LEFT')}
           onTouchStart={(e) => { e.preventDefault(); handleInput('LEFT'); }}
         >
-          <span className="text-4xl md:text-6xl font-extrabold text-emerald-400 mb-2 group-hover:text-emerald-300">E</span>
-          <span className="text-xs md:text-sm text-slate-400 uppercase tracking-widest font-bold">Лево</span>
+          <span className="text-4xl font-extrabold text-emerald-400 mb-2 group-hover:text-emerald-300">E</span>
+          <span className="text-xs text-slate-400 uppercase tracking-widest font-bold">Лево</span>
         </button>
         <button 
           className="flex-1 max-w-md bg-slate-800/90 backdrop-blur-sm border-2 border-slate-600 hover:border-blue-500/50 hover:bg-slate-700 active:bg-slate-600 active:scale-95 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg active:shadow-inner group touch-manipulation"
           onMouseDown={() => handleInput('RIGHT')}
           onTouchStart={(e) => { e.preventDefault(); handleInput('RIGHT'); }}
         >
-           <span className="text-4xl md:text-6xl font-extrabold text-blue-400 mb-2 group-hover:text-blue-300">I</span>
-           <span className="text-xs md:text-sm text-slate-400 uppercase tracking-widest font-bold">Право</span>
+           <span className="text-4xl font-extrabold text-blue-400 mb-2 group-hover:text-blue-300">I</span>
+           <span className="text-xs text-slate-400 uppercase tracking-widest font-bold">Право</span>
         </button>
       </div>
     </div>
