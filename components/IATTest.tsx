@@ -190,7 +190,15 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
     // Pick a stimulus that matches active categories
     const validCategories = [...block.leftCategories, ...block.rightCategories];
     const pool = STIMULI_POOL.filter(s => validCategories.includes(s.category));
-    const nextStim = getRandom(pool);
+    
+    // --- ИЗМЕНЕНИЕ: Запрет повтора стимулов ---
+    // Исключаем текущий стимул из кандидатов, если в пуле есть другие варианты
+    let availableCandidates = pool;
+    if (stateRef.current.currentStimulus && pool.length > 1) {
+        availableCandidates = pool.filter(s => s.id !== stateRef.current.currentStimulus.id);
+    }
+    const nextStim = getRandom(availableCandidates);
+    // ------------------------------------------
 
     setCurrentStimulus(nextStim);
     setMistake(false);
