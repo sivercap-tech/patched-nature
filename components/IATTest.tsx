@@ -103,6 +103,7 @@ const getBlocks = (group: 'A' | 'B'): BlockConfig[] => {
 const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: () => void }) => {
   // New State: General Instructions before starting blocks
   const [showGeneralIntro, setShowGeneralIntro] = useState(true);
+  const [introStep, setIntroStep] = useState(0); // Added for step-by-step intro
 
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [isInstruction, setIsInstruction] = useState(true);
@@ -117,6 +118,9 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Debounce Ref (Protection against double taps)
+  const lastInputTime = useRef(0);
 
   // Initialize blocks based on session group
   const blocks = useMemo(() => getBlocks(session.group), [session.group]);
@@ -156,8 +160,6 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
     setFinished(true);
     setIsSaving(true);
     
-    // Include group info in the payload implicitly via the session object or explicitly in the results structure if needed.
-    // Here we save the raw results, and the session object (containing group) is passed to the service.
     const response = await saveResults(session, {
       group: session.group,
       data: finalResults
@@ -176,7 +178,6 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
     if (stateRef.current.trialCount >= block.trials) {
       // End of block
       if (currentBlockIndex >= blocksLocal.length - 1) {
-        // Pass the current accumulated results to finishTest
         finishTest(results); 
         return;
       }
@@ -198,6 +199,13 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
   }, [currentBlockIndex, results, finishTest]);
 
   const handleInput = useCallback((action: 'LEFT' | 'RIGHT' | 'SPACE') => {
+    // FIX: Debounce to prevent double-taps/ghost clicks (150ms buffer)
+    const now = performance.now();
+    if (now - lastInputTime.current < 150) {
+      return; 
+    }
+    lastInputTime.current = now;
+
     const state = stateRef.current;
     if (state.finished || state.isSaving) return;
 
@@ -205,7 +213,6 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
     if (state.showGeneralIntro) {
       if (action === 'SPACE') {
         setShowGeneralIntro(false);
-        // We are already at block 0, instruction true by default.
       }
       return;
     }
@@ -237,14 +244,13 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
     if (correctSide !== pressedSide) {
       setMistake(true);
-      // In standard IAT, user must correct the mistake. Time continues.
     } else {
       const endTime = performance.now();
       const rt = endTime - state.startTime;
       
       const result = {
         blockId: block.id,
-        blockName: block.title, // Helpful for analysis
+        blockName: block.title, 
         stimulusId: state.currentStimulus.id,
         category: state.currentStimulus.category,
         isCorrect: !state.mistake,
@@ -252,7 +258,6 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
         timestamp: Date.now()
       };
 
-      // Update results locally
       setResults(prev => [...prev, result]);
       
       const isLastBlock = state.currentBlockIndex >= state.blocks.length - 1;
@@ -278,9 +283,8 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
-      // Use e.code to ignore keyboard layout (English vs Russian)
       if (e.code === 'Space') {
-        e.preventDefault(); // Prevent scrolling
+        e.preventDefault();
         handleInput('SPACE');
       }
       if (e.code === 'KeyE') handleInput('LEFT');
@@ -292,7 +296,7 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const target = e.target as HTMLImageElement;
-    target.style.display = 'none'; // Hide broken image
+    target.style.display = 'none'; 
     const parent = target.parentElement;
     if (parent) {
       const errorText = document.createElement('span');
@@ -325,7 +329,6 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
         <div className="flex gap-4 mt-4">
           <button 
-            // ИЗМЕНЕНО: Редирект на anketolog.ru с подстановкой userId
             onClick={() => window.location.href = `https://panel.anketolog.ru/s/exf?s=0&ui=${session.userId}`}
             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold text-lg transition-colors"
           >
@@ -360,70 +363,87 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
   // General Intro Screen (before any blocks)
   if (showGeneralIntro) {
     return (
-      <div 
-        className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 md:p-8 text-center max-w-7xl mx-auto cursor-pointer"
-        onClick={() => handleInput('SPACE')}
-      >
-        <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl mb-8 w-full">
-          <p className="text-xl md:text-2xl leading-relaxed text-slate-200 mb-8 max-w-4xl mx-auto">
-            Постарайтесь действовать как можно быстрее, но при этом сохранять внимательность, чтобы допустить минимум ошибок. 
-            <br/><br/>
-            Вы будете использовать клавиши 
-            <span className="font-bold text-emerald-400 mx-2">'E'</span> и 
-            <span className="font-bold text-blue-400 mx-2">'I'</span> 
-            на клавиатуре, чтобы как можно быстрее относить слова и картинки к разным группам. 
-            <br/><br/>
-            Если вы ошибетесь, на экране появится <span className="text-red-500 font-bold">X</span> красного цвета. Нажмите другую кнопку для продолжения.
-            <br/><br/>
-            Ниже показаны четыре группы и примеры элементов, которые к ним относятся:
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-            {/* Bashkirs */}
-            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
-              <h3 className="font-bold text-emerald-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Башкиры</h3>
-              <ul className="text-slate-300 space-y-1 text-sm text-center">
-                {BASHKIR_WORDS.map((w) => <li key={w}>{w}</li>)}
-              </ul>
-            </div>
-
-            {/* Russians */}
-            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
-              <h3 className="font-bold text-blue-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Русские</h3>
-              <ul className="text-slate-300 space-y-1 text-sm text-center">
-                {RUSSIAN_WORDS.map((w) => <li key={w}>{w}</li>)}
-              </ul>
-            </div>
-
-            {/* Mountain */}
-            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
-              <h3 className="font-bold text-emerald-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Горы</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {MOUNTAIN_IMAGES.slice(0, 4).map((src, i) => (
-                  <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
-                    <img src={src} className="w-full h-full object-cover" alt="Mountain" onError={handleImageError} />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Swamp */}
-            <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-700">
-              <h3 className="font-bold text-blue-400 text-xl mb-4 text-center border-b border-slate-700 pb-2">Болота</h3>
-              <div className="grid grid-cols-2 gap-2">
-                 {SWAMP_IMAGES.slice(0, 4).map((src, i) => (
-                  <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
-                    <img src={src} className="w-full h-full object-cover" alt="Swamp" onError={handleImageError} />
-                  </div>
-                ))}
-              </div>
-            </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 text-center max-w-7xl mx-auto">
+        
+        {/* Шаг 1: Текстовая инструкция */}
+        {introStep === 0 && (
+          <div className="bg-slate-800 p-6 md:p-10 rounded-xl border border-slate-700 shadow-2xl w-full max-w-3xl flex flex-col items-center">
+            <h2 className="text-2xl md:text-4xl font-bold text-emerald-400 mb-6">Инструкция</h2>
+            <p className="text-lg md:text-2xl leading-relaxed text-slate-200 mb-8 text-left md:text-center">
+              Постарайтесь действовать как можно быстрее, но при этом сохранять внимательность.
+              <br/><br/>
+              Вы будете использовать клавиши 
+              <span className="font-bold text-emerald-400 mx-2">'E'</span> и 
+              <span className="font-bold text-blue-400 mx-2">'I'</span> 
+              (или кнопки на экране), чтобы сортировать слова и картинки.
+              <br/><br/>
+              Если вы ошибетесь, появится красный <span className="text-red-500 font-bold">X</span>. Исправьте ошибку, нажав другую кнопку, чтобы продолжить.
+            </p>
+            <button 
+              onClick={() => setIntroStep(1)}
+              className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg transition-transform active:scale-95"
+            >
+              Далее
+            </button>
           </div>
-        </div>
+        )}
 
-        <div className="animate-pulse text-emerald-400 font-bold text-xl md:text-2xl mt-4">
-          Нажмите ПРОБЕЛ, чтобы продолжить
-        </div>
+        {/* Шаг 2: Примеры категорий */}
+        {introStep === 1 && (
+          <div className="bg-slate-800 p-2 md:p-8 rounded-xl border border-slate-700 shadow-2xl w-full flex flex-col items-center pb-24 md:pb-8">
+            <p className="text-base md:text-2xl text-slate-300 mb-4 md:mb-6">Запомните категории и примеры:</p>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 text-left mb-2 w-full">
+              {/* Bashkirs */}
+              <div className="bg-slate-900/60 p-2 md:p-4 rounded-lg border border-slate-700">
+                <h3 className="font-bold text-emerald-400 text-sm md:text-lg mb-2 text-center border-b border-slate-700 pb-1">Башкиры</h3>
+                <ul className="text-slate-300 space-y-0.5 text-[10px] md:text-base text-center leading-tight">
+                  {BASHKIR_WORDS.map((w) => <li key={w}>{w}</li>)}
+                </ul>
+              </div>
+
+              {/* Russians */}
+              <div className="bg-slate-900/60 p-2 md:p-4 rounded-lg border border-slate-700">
+                <h3 className="font-bold text-blue-400 text-sm md:text-lg mb-2 text-center border-b border-slate-700 pb-1">Русские</h3>
+                <ul className="text-slate-300 space-y-0.5 text-[10px] md:text-base text-center leading-tight">
+                  {RUSSIAN_WORDS.map((w) => <li key={w}>{w}</li>)}
+                </ul>
+              </div>
+
+              {/* Mountain */}
+              <div className="bg-slate-900/60 p-2 md:p-4 rounded-lg border border-slate-700">
+                <h3 className="font-bold text-emerald-400 text-sm md:text-lg mb-2 text-center border-b border-slate-700 pb-1">Горы</h3>
+                <div className="grid grid-cols-2 gap-1 md:gap-2">
+                  {MOUNTAIN_IMAGES.slice(0, 4).map((src, i) => (
+                    <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
+                      <img src={src} className="w-full h-full object-cover" alt="Mountain" onError={handleImageError} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Swamp */}
+              <div className="bg-slate-900/60 p-2 md:p-4 rounded-lg border border-slate-700">
+                <h3 className="font-bold text-blue-400 text-sm md:text-lg mb-2 text-center border-b border-slate-700 pb-1">Болота</h3>
+                <div className="grid grid-cols-2 gap-1 md:gap-2">
+                   {SWAMP_IMAGES.slice(0, 4).map((src, i) => (
+                    <div key={i} className="aspect-square bg-slate-800 rounded overflow-hidden">
+                      <img src={src} className="w-full h-full object-cover" alt="Swamp" onError={handleImageError} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => handleInput('SPACE')}
+              className="fixed bottom-6 left-4 right-4 md:static md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-xl font-bold py-3 md:py-4 px-12 rounded-full shadow-lg transition-transform active:scale-95 animate-pulse z-50"
+            >
+              Начать тест
+            </button>
+          </div>
+        )}
+
       </div>
     );
   }
@@ -432,31 +452,32 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
   if (isInstruction) {
     return (
       <div 
-        className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-8 text-center max-w-5xl mx-auto cursor-pointer"
-        onClick={() => handleInput('SPACE')} // Allow click to start
+        className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-2 md:p-8 text-center max-w-5xl mx-auto cursor-pointer"
+        onClick={() => handleInput('SPACE')}
       >
-        <h2 className="text-2xl font-bold mb-4 text-blue-400">{currentBlock.title}</h2>
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl mb-6 select-none w-full max-w-3xl">
-          <pre className="whitespace-pre-wrap font-sans text-xl leading-relaxed text-slate-200 mb-4">
+        <h2 className="text-lg md:text-3xl font-bold mb-2 md:mb-4 text-blue-400">{currentBlock.title}</h2>
+        
+        <div className="bg-slate-800 p-3 md:p-6 rounded-xl border border-slate-700 shadow-2xl mb-4 select-none w-full max-w-3xl">
+          <pre className="whitespace-pre-wrap font-sans text-sm md:text-xl leading-relaxed text-slate-200 mb-2 md:mb-4">
             {currentBlock.instruction}
           </pre>
           
           {/* Block 1: Words - Bashkir (Left), Russian (Right) */}
           {currentBlock.id === 1 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-left border-t border-slate-600 pt-4">
-              <div className="bg-slate-900/50 p-4 rounded-lg">
-                <h3 className="font-bold text-emerald-400 mb-2 text-center">Башкирские (E)</h3>
-                <div className="flex flex-wrap gap-2 justify-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 mt-2 text-left border-t border-slate-600 pt-2 md:pt-4">
+              <div className="bg-slate-900/50 p-2 md:p-4 rounded-lg">
+                <h3 className="font-bold text-emerald-400 mb-1 md:mb-2 text-center text-sm md:text-lg">Башкирские (E)</h3>
+                <div className="flex flex-wrap gap-1 md:gap-2 justify-center">
                   {BASHKIR_WORDS.map(w => (
-                    <span key={w} className="px-2 py-1 bg-emerald-900/40 border border-emerald-500/30 rounded text-sm text-emerald-100">{w}</span>
+                    <span key={w} className="px-1.5 py-0.5 md:px-2 md:py-1 bg-emerald-900/40 border border-emerald-500/30 rounded text-[10px] md:text-sm text-emerald-100">{w}</span>
                   ))}
                 </div>
               </div>
-              <div className="bg-slate-900/50 p-4 rounded-lg">
-                <h3 className="font-bold text-blue-400 mb-2 text-center">Русские (I)</h3>
-                <div className="flex flex-wrap gap-2 justify-center">
+              <div className="bg-slate-900/50 p-2 md:p-4 rounded-lg">
+                <h3 className="font-bold text-blue-400 mb-1 md:mb-2 text-center text-sm md:text-lg">Русские (I)</h3>
+                <div className="flex flex-wrap gap-1 md:gap-2 justify-center">
                   {RUSSIAN_WORDS.map(w => (
-                    <span key={w} className="px-2 py-1 bg-blue-900/40 border border-blue-500/30 rounded text-sm text-blue-100">{w}</span>
+                    <span key={w} className="px-1.5 py-0.5 md:px-2 md:py-1 bg-blue-900/40 border border-blue-500/30 rounded text-[10px] md:text-sm text-blue-100">{w}</span>
                   ))}
                 </div>
               </div>
@@ -465,20 +486,20 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
           {/* Block 5: Words - Russian (Left), Bashkir (Right) */}
           {currentBlock.id === 5 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-left border-t border-slate-600 pt-4">
-              <div className="bg-slate-900/50 p-4 rounded-lg">
-                <h3 className="font-bold text-emerald-400 mb-2 text-center">Русские (E)</h3>
-                <div className="flex flex-wrap gap-2 justify-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 mt-2 text-left border-t border-slate-600 pt-2 md:pt-4">
+              <div className="bg-slate-900/50 p-2 md:p-4 rounded-lg">
+                <h3 className="font-bold text-emerald-400 mb-1 md:mb-2 text-center text-sm md:text-lg">Русские (E)</h3>
+                <div className="flex flex-wrap gap-1 md:gap-2 justify-center">
                   {RUSSIAN_WORDS.map(w => (
-                    <span key={w} className="px-2 py-1 bg-emerald-900/40 border border-emerald-500/30 rounded text-sm text-emerald-100">{w}</span>
+                    <span key={w} className="px-1.5 py-0.5 md:px-2 md:py-1 bg-emerald-900/40 border border-emerald-500/30 rounded text-[10px] md:text-sm text-emerald-100">{w}</span>
                   ))}
                 </div>
               </div>
-              <div className="bg-slate-900/50 p-4 rounded-lg">
-                <h3 className="font-bold text-blue-400 mb-2 text-center">Башкирские (I)</h3>
-                <div className="flex flex-wrap gap-2 justify-center">
+              <div className="bg-slate-900/50 p-2 md:p-4 rounded-lg">
+                <h3 className="font-bold text-blue-400 mb-1 md:mb-2 text-center text-sm md:text-lg">Башкирские (I)</h3>
+                <div className="flex flex-wrap gap-1 md:gap-2 justify-center">
                   {BASHKIR_WORDS.map(w => (
-                    <span key={w} className="px-2 py-1 bg-blue-900/40 border border-blue-500/30 rounded text-sm text-blue-100">{w}</span>
+                    <span key={w} className="px-1.5 py-0.5 md:px-2 md:py-1 bg-blue-900/40 border border-blue-500/30 rounded text-[10px] md:text-sm text-blue-100">{w}</span>
                   ))}
                 </div>
               </div>
@@ -487,12 +508,12 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
 
           {/* Block 2: Images - Mountain (Left), Swamp (Right) */}
           {currentBlock.id === 2 && (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t border-slate-600 pt-4">
-                <div className="bg-slate-900/50 p-4 rounded-lg">
-                  <h3 className="font-bold text-emerald-400 mb-2 text-center">Горы (E)</h3>
-                  <div className="flex justify-center gap-2 flex-wrap">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 mt-2 border-t border-slate-600 pt-2 md:pt-4">
+                <div className="bg-slate-900/50 p-2 md:p-4 rounded-lg">
+                  <h3 className="font-bold text-emerald-400 mb-1 md:mb-2 text-center text-sm md:text-lg">Горы (E)</h3>
+                  <div className="flex justify-center gap-1 md:gap-2 flex-wrap">
                      {MOUNTAIN_IMAGES.map((src, i) => (
-                       <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
+                       <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-10 h-10 md:w-14 md:h-14 overflow-hidden">
                          <img 
                            src={src} 
                            className="w-full h-full object-cover" 
@@ -503,11 +524,11 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
                      ))}
                   </div>
                 </div>
-                <div className="bg-slate-900/50 p-4 rounded-lg">
-                  <h3 className="font-bold text-blue-400 mb-2 text-center">Болота (I)</h3>
-                  <div className="flex justify-center gap-2 flex-wrap">
+                <div className="bg-slate-900/50 p-2 md:p-4 rounded-lg">
+                  <h3 className="font-bold text-blue-400 mb-1 md:mb-2 text-center text-sm md:text-lg">Болота (I)</h3>
+                  <div className="flex justify-center gap-1 md:gap-2 flex-wrap">
                      {SWAMP_IMAGES.map((src, i) => (
-                       <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-14 h-14 overflow-hidden">
+                       <div key={i} className="flex items-center justify-center bg-slate-800 rounded border border-slate-600 w-10 h-10 md:w-14 md:h-14 overflow-hidden">
                          <img 
                            src={src} 
                            className="w-full h-full object-cover" 
@@ -522,8 +543,8 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
           )}
 
         </div>
-        <div className="animate-pulse text-emerald-400 font-bold text-lg">
-          Нажмите ПРОБЕЛ, чтобы начать
+        <div className="animate-pulse text-emerald-400 font-bold text-base md:text-2xl">
+          Нажмите на экран или ПРОБЕЛ
         </div>
       </div>
     );
@@ -534,6 +555,7 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
     <div className="flex flex-col h-screen bg-slate-900 text-white overflow-hidden select-none">
       {/* Header / Labels */}
       <div className="flex justify-between items-center p-4 md:p-6 h-28 md:h-32 w-full max-w-5xl mx-auto mt-4">
+        
         <div className="flex-1 text-left text-lg md:text-2xl font-bold uppercase tracking-wider text-blue-400 leading-tight">
           {currentBlock.leftCategories.map(c => (
              <div key={c}>{c === Category.BASHKIR ? 'Башкиры' : c === Category.RUSSIAN ? 'Русские' : c === Category.MOUNTAIN ? 'Горы' : 'Болота'}</div>
@@ -580,21 +602,19 @@ const IATTest = ({ session, onComplete }: { session: UserSession, onComplete: ()
               src={currentStimulus.content} 
               alt="stimulus" 
               onError={(e) => {
-                // Handle broken images in test flow
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
                 console.error("Missing Stimulus Image:", target.src);
               }}
-              className="max-h-[30vh] md:max-h-[45vh] w-auto rounded-xl shadow-2xl border-4 border-slate-700 select-none pointer-events-none"
+              className="max-h-[25vh] md:max-h-[45vh] w-auto rounded-xl shadow-2xl border-4 border-slate-700 select-none pointer-events-none"
             />
-            {/* Fallback text if image breaks (only visible if image hidden) */}
             <div className="hidden">Изображение не найдено</div>
           </div>
         )}
       </div>
 
       {/* Footer Controls */}
-<div className="p-4 pb-8 mb-16 md:mb-0 flex gap-4 md:gap-8 w-full justify-center items-stretch h-36 md:h-48 z-10">
+      <div className="p-4 pb-8 mb-16 md:mb-0 flex gap-4 md:gap-8 w-full justify-center items-stretch h-36 md:h-48 z-10">
         <button 
           className="flex-1 max-w-md bg-slate-800/90 backdrop-blur-sm border-2 border-slate-600 hover:border-emerald-500/50 hover:bg-slate-700 active:bg-slate-600 active:scale-95 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg active:shadow-inner group touch-manipulation"
           onMouseDown={() => handleInput('LEFT')}
